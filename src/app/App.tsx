@@ -1,12 +1,23 @@
-import { ShieldCheck } from "lucide-react";
+import { useEffect } from "react";
+import { RouterProvider } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
+import { Toaster } from "@/components/ui/toaster";
+import { crmConfig } from "@/config/crm";
+import { AuthProviderRoot } from "@/features/auth/auth-context";
+import { router } from "./routes";
 import "../styles/globals.css";
 
 export function App() {
+  useEffect(() => {
+    document.title = crmConfig.appName;
+  }, []);
+
   return (
-    <main className="open-for-editing">
-      <ShieldCheck aria-hidden="true" className="open-for-editing__icon" strokeWidth={1.8} />
-      <h1>Open for Editing</h1>
-      <p>Agent: edit this page freely and keep it simple.</p>
-    </main>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <AuthProviderRoot>
+        <RouterProvider router={router} future={{ v7_startTransition: true }} />
+        <Toaster />
+      </AuthProviderRoot>
+    </ThemeProvider>
   );
 }

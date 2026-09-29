@@ -34,8 +34,16 @@ export async function apiRequest<TResponse, TBody = unknown>(
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed with status ${response.status}`);
+    const text = await response.text();
+    let message = text;
+    try {
+      // Server errors are JSON { error, code? }; surface the human message.
+      const parsed = JSON.parse(text) as { error?: unknown };
+      if (typeof parsed.error === "string") message = parsed.error;
+    } catch {
+      // Not JSON: keep the raw text.
+    }
+    throw Object.assign(new Error(message || `Request failed with status ${response.status}`), { status: response.status });
   }
 
   if (response.status === 204) {

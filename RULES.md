@@ -1,54 +1,58 @@
 # RULES.md
 
-Change boundaries and placement rules for the RiverX base Vite template.
+Change boundaries and placement rules for the CRM template.
 
-## Core Product Shape
+## Product shape
 
-- Frontend-only Vite + React base app.
-- Single main marketing route (`/`) and 404 fallback.
-- shadcn-style primitives over Tailwind tokens/CSS variables.
-- No auth or backend SDK wired by default.
+- Vite + React SPA: public landing + auth pages, and the CRM under `/app`.
+- CRM data goes through Drizzle over the Data API (`src/db/client.ts`).
+- Auth goes through the server API (`server/auth.ts`); the browser never touches `auth_*` tables.
+- Business vocabulary and options live in `src/config/crm.ts`, never hard-coded in pages.
+- Dev-mode resource use is a product requirement: keep dependencies minimal (see Dependencies).
 
-## Routing Rules
+## Routing
 
-1. Define routes in `src/app/routes.tsx`.
-2. Keep route-level views in `src/pages`.
-3. Keep shell composition in `src/components/layout`.
+1. Define routes in `src/app/routes.tsx`. App pages live under `/app` and are lazy-loaded.
+2. Route-level views go in `src/pages`; shell composition goes in `src/components/layout`.
+3. Internal links use `/app/...` paths.
 
-## Component Rules
+## Data
 
-1. Reusable primitives belong in `src/components/ui`.
-2. Prefer shadcn-style component APIs (`CardHeader`, `CardContent`, etc.) for consistency.
-3. Use named exports for reusable components.
-4. Keep components small and readable.
+1. Tables live only in `src/db/schema.ts`; change them with `pnpm db:push` (no runtime DDL).
+2. Queries live in `src/features/<entity>/api.ts`; components call those functions, not `db` directly.
+3. Use `db.batch([...])` for multi-step writes, never `db.transaction()`.
+4. Paginate lists (`crmConfig.pageSize`); the Data API caps results at 1,000 rows.
+5. Never import `@libsql/client` or read `TURSO_*` from `src/`. They belong to `server/`, `scripts/`, `api/` and `drizzle.config.ts` only.
 
-## Data and Env Rules
+## Components
 
-1. Read env variables only from `src/lib/env.ts`.
-2. Route all HTTP calls through `src/lib/api.ts`.
-3. Keep backend-specific logic isolated in `src/lib`.
-4. Add auth headers only where marked in `api.ts` when auth is introduced.
+1. Reusable primitives belong in `src/components/ui`; CRM building blocks in `src/components/crm`; icons in `src/components/icons.ts`.
+2. Use named exports. Keep components small.
+3. Follow `DESIGN.md` for every visual decision.
 
-## Styling Rules
+## Dependencies
 
-1. Use Tailwind utilities and token-based classes (`foreground`, `muted-foreground`, `border`, `card`, etc.).
-2. Keep `src/styles/globals.css` focused on Tailwind directives + base variable tokens.
-3. Avoid additional CSS frameworks.
+Dev mode runs in shared workspaces, so the dependency list is kept deliberately short (see "Dependency budget" in `README.md`).
 
-## AI Editing Rules
+1. Before adding a package, check whether a few lines in `src/lib` or `src/hooks` would do. Add one only when it brings real behaviour (accessibility, a protocol, a data layer), not convenience.
+2. Do not reintroduce the libraries that were replaced: `lucide-react` (use `src/components/icons.ts`), `date-fns` (use `Intl` helpers in `src/lib/format.ts`), `react-hook-form` / `zod` (use `src/hooks/use-form.ts`), `sonner` (use `src/lib/toast.ts`), `recharts` (hand-build the chart as in `PipelineChart.tsx`).
+3. New icons: copy the SVG children from lucide.dev into a new `icon("name", [...])` line in `src/components/icons.ts`.
+4. New shadcn components: add only the ones you use, restyle them to `DESIGN.md`, and remove the file and its dependency if they stop being used. The shadcn CLI installs `lucide-react` along with components: point their icon imports at `@/components/icons` and uninstall it.
+5. Keep one `esbuild`: if you upgrade Vite or `drizzle-kit`, update `pnpm.overrides` in `package.json` so their versions still match, then check `ls node_modules/.pnpm | grep ^esbuild@`.
+6. Keep `@vitejs/plugin-react-swc`; don't switch back to the Babel plugin.
 
-1. Preserve deterministic folder structure.
-2. Avoid monolithic files and broad unrelated edits.
-3. Add comments only when they provide concrete implementation clarity.
-4. Keep docs synchronized with code changes.
+## Env and HTTP
 
-## Script Rules
+1. Read browser env only in `src/lib/env.ts`.
+2. Route HTTP through `src/lib/api.ts`.
 
-1. Keep `scripts/dev-supervisor.js`, `scripts/git-poll.js`, `scripts/error-reporter.ts`, and `scripts/db-init.js` unless explicitly requested otherwise.
-2. Any script behavior change must preserve current Vite runtime assumptions.
+## AI editing
 
-## Non-Negotiables
+1. Preserve the folder structure. Avoid monolithic files and unrelated edits.
+2. Add comments only when they clarify something non-obvious.
+3. Keep `README.md`, `FILES.md`, `RULES.md`, `DATABASE.md` and `DESIGN.md` in sync with code changes.
+4. Ask before destructive schema changes or seeding data.
 
-- Do not add backend services in this template.
-- Do not add authentication in the base template.
-- Do not migrate away from Vite + React in base setup.
+## Scripts
+
+Keep `scripts/dev-supervisor.js`, `scripts/git-poll.js`, `scripts/error-reporter.ts` and `scripts/db-init.js` unless explicitly asked. Script changes must preserve the Vite runtime assumptions.

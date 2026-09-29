@@ -56,11 +56,11 @@ VITE_RIVERX_DB_KEY=
 ## 3. Install
 
 ```bash
-pnpm add drizzle-orm
-pnpm add -D drizzle-kit @libsql/client
+pnpm add drizzle-orm @libsql/client
+pnpm add -D drizzle-kit
 ```
 
-`@libsql/client` is for `drizzle-kit` only. **Never import it from `src/`**: it would bypass the Data API and needs the private token.
+`@libsql/client` is used by `drizzle-kit`, the local dev proxy and the server auth API (a runtime dependency because the Vercel function needs it). **Never import it from `src/`**: it would bypass the Data API and needs the private token.
 
 ## 4. Files
 
@@ -117,11 +117,15 @@ type QueryResult = {
 
 export const isDatabaseConfigured = Boolean(env.dbUrl && env.dbKey);
 
+// Absolute, so apiRequest never prefixes it with the API base URL (matters for
+// the relative URL of the local dev proxy).
+const dbBaseUrl = env.dbUrl ? new URL(env.dbUrl, window.location.origin).href.replace(/\/$/, "") : "";
+
 function post<T>(path: string, body: unknown) {
   if (!isDatabaseConfigured) {
     throw new Error("Database is not configured. Create one from the RiverX Data tab.");
   }
-  return apiRequest<T>(`${env.dbUrl.replace(/\/$/, "")}/${path}`, {
+  return apiRequest<T>(`${dbBaseUrl}/${path}`, {
     method: "POST",
     headers: { "x-riverx-key": env.dbKey },
     body,
@@ -271,7 +275,27 @@ Errors come back as `{ error, code }` and surface as thrown errors from `apiRequ
 - The published domain and any custom domain are added to the database's allowed origins automatically.
 - **Rotating the publishable key requires a redeploy.** The old key is baked into the existing bundle.
 
-## 9. Troubleshooting
+## 9. Running outside RiverX (local proxy)
+
+With no RiverX Data API, put `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in a gitignored `.env` (or export them) and leave `VITE_RIVERX_DB_URL` empty. `pnpm dev` then serves the same Data API contract at `/__local-db/v1` (`scripts/local-db-proxy.ts`):
+
+- The Turso token stays in the Vite Node process; the browser gets a random per-process key.
+- The proxy applies the guard from section 7: DDL, multi-statement SQL, `PRAGMA` writes and internal-table writes are rejected.
+- `src/db/client.ts` is unchanged; it resolves the relative URL against the page origin.
+- `drizzle.config.ts` loads `.env.local` / `.env` itself, so `pnpm db:push` works too.
+
+This proxy exists in dev only. `vite build` output never contains it or the token.
+
+## 10. Auth tables (server-only)
+
+`auth_users` and `auth_sessions` are defined in `schema.ts` but are read and written **only** by `server/auth.ts`, which runs on the server (Vite middleware in dev, `api/auth/[action].ts` on Vercel) with `TURSO_*`.
+
+- Never query `auth_*` from `src/`. The local proxy rejects any SQL that mentions them.
+- Passwords are scrypt-hashed. Session tokens live only in an httpOnly cookie; the table stores their SHA-256.
+- **Caveat:** the hosted RiverX Data API does not know about this rule, so under RiverX the `auth_*` tables are readable with the publishable key. Hashes are not plaintext, but for production keep auth data where the public key cannot reach it.
+- The server auth API needs `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` in the hosting environment (server-only, never `VITE_`).
+
+## 11. Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
@@ -292,4 +316,5 @@ Errors come back as `{ error, code }` and surface as thrown errors from `apiRequ
 - No secrets, passwords, or PII in the database: it is publicly readable and writable.
 - Don't edit `.env.local`. Don't read `TURSO_*` from `src/`. Don't import `@libsql/client` in `src/`.
 - Ask before destructive schema changes or seeding data.
+- Never read or write `auth_*` tables from `src/`. Auth goes through `/api/auth/*`.
 - `scripts/db-init.js` is the separate Postgres (`DATABASE_URL`) migration helper. It is **not** used for the Turso database.
