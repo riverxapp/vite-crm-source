@@ -44,7 +44,7 @@ Stored values are the option `value` keys. Renaming a label is safe; changing a 
 | Command | Does |
 |---|---|
 | `pnpm dev` | Dev server with the local DB proxy and auth API |
-| `pnpm build` / `pnpm preview` | Production build / serve it |
+| `pnpm build` / `pnpm preview` | Production build / serve it. `preview` serves `/api/auth` but not `/api/db`, so data pages need `pnpm dev` or a Vercel deploy |
 | `pnpm typecheck` | TypeScript check |
 | `pnpm db:push` | Apply `src/db/schema.ts` to Turso |
 | `pnpm db:studio` | Browse the database with Drizzle Studio |
@@ -56,7 +56,7 @@ Stored values are the option `value` keys. Renaming a label is safe; changing a 
 |---|---|---|
 | `VITE_APP_NAME` | browser | App name (default `RiverX CRM`) |
 | `VITE_API_BASE_URL` | browser | Base for `src/lib/api.ts` (default `/api`) |
-| `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` | browser | RiverX Data API. Injected by RiverX; leave empty locally and on Vercel |
+| `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` | browser | RiverX Data API. Injected by RiverX; leave empty locally and on your own Vercel project |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | **server only** | drizzle-kit, the local DB proxy, and the auth and data API functions. Never prefix with `VITE_` |
 
 `.env` / `.env.*` are gitignored.
@@ -68,18 +68,35 @@ browser ── Drizzle (sqlite-proxy) ──▶ Data API ──▶ Turso        
 browser ── /api/auth/* (cookie)   ──▶ server/auth.ts ──▶ Turso  auth_* tables
 ```
 
-- **In RiverX**, the Data API is RiverX's hosted endpoint (see `DATABASE.md`).
-- **Locally**, when `TURSO_*` are set and `VITE_RIVERX_DB_URL` is empty, `pnpm dev` serves the same Data API contract at `/__local-db/v1` (`scripts/local-db-proxy.ts`). The token stays in the Node process; DDL, multi-statement SQL and any SQL touching `auth_*` tables are rejected.
-- **On Vercel** (no RiverX), a production build defaults the Data API to `/api/db` (`api/db/[action].ts`). It requires a logged-in session cookie and applies the same guard. The guard and handler live in `server/db.ts`, shared with the local proxy.
+The browser code is the same everywhere; only the Data API behind it changes:
+
+| Where | Data API | Authorised by |
+|---|---|---|
+| RiverX | RiverX's hosted endpoint, from `VITE_RIVERX_DB_URL` (see `DATABASE.md`) | Publishable key `VITE_RIVERX_DB_KEY` |
+| `pnpm dev`, no RiverX | `/__local-db/v1`, served by `scripts/local-db-proxy.ts` when `TURSO_*` are set | Random per-process key |
+| Production build, no RiverX (e.g. Vercel) | `/api/db/*`, served by `api/db/[action].ts` | Login session cookie |
+
+- The local proxy and `/api/db` share `server/db.ts`: the same contract and SQL guard (no DDL, one statement per query, no SQL touching `auth_*` tables). The Turso token stays on the server.
 - **Auth** runs only on the server: Vite middleware in dev (`scripts/local-auth-api.ts`) and a Vercel function in production (`api/auth/[action].ts`). Both share `server/auth.ts`.
 
 ## Deploying
 
 The build is a static SPA plus two serverless functions (`/api/auth/*`, `/api/db/*`). `vercel.json` rewrites client routes to `index.html`.
 
-1. Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in the hosting environment (server-only).
+1. In Vercel → Project → Settings → Environment Variables, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (server-only, no `VITE_` prefix) for each environment you deploy.
 2. Run `pnpm db:push` against that database once so the tables exist.
 3. Leave `VITE_RIVERX_DB_*` unset: CRM data then goes through `/api/db`. Under RiverX, its injected `VITE_RIVERX_DB_*` take precedence.
+4. Redeploy after changing env vars. `VITE_*` values are inlined at build time.
+
+`package.json` sets `"type": "module"`, so Vercel runs the functions as native ES modules. Relative imports in `api/` and `server/` must end in `.js` (`from "../../server/auth.js"`); without it the function fails to load with `FUNCTION_INVOCATION_FAILED`.
+
+| Symptom on Vercel | Cause / fix |
+|---|---|
+| `FUNCTION_INVOCATION_FAILED` | Usually a relative import without `.js` in `api/` or `server/`. Check the function logs for `ERR_MODULE_NOT_FOUND` |
+| Auth returns 503 "Auth is not configured" | `TURSO_*` missing from that environment's variables |
+| "Connect a database to get started" | The deployed build predates `/api/db`. Redeploy from the current `main` |
+| Data requests return 401 "Log in to continue." | No valid session cookie. Log in again |
+| Errors like `no such table` | Run `pnpm db:push` against the production database |
 
 ## Security notes
 

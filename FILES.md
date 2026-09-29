@@ -8,7 +8,7 @@ Structural index for the CRM template.
 - `src/main.tsx`: React mount.
 - `src/app/App.tsx`: providers (theme, auth, tooltips, toasts) + router.
 - `src/app/routes.tsx`: every route. `/`, `/login`, `/signup` are public; `/app/*` requires a session (app pages are lazy-loaded).
-- `src/app/DatabaseGate.tsx`: shows setup instructions when no database is configured.
+- `src/app/DatabaseGate.tsx`: shows setup instructions when no database is configured (dev only in practice: production builds fall back to `/api/db`).
 
 ## Source areas
 
@@ -24,10 +24,12 @@ Structural index for the CRM template.
 | UI primitives | `src/components/ui/` | The shadcn components in use, restyled to `DESIGN.md`: alert-dialog, button, card, checkbox, command, dialog, dropdown-menu, input, label, popover, select, sheet, skeleton, spinner, table, tabs, textarea, toaster |
 | Icons | `src/components/icons.ts` | The 42 icons the app uses, inlined from Lucide (ISC). Add new ones here |
 | Hooks | `src/hooks/` | `use-form` (form state + validation), `use-async`, `use-mutation`, `use-list-params` (URL state), `use-debounced-value` |
-| Libs | `src/lib/` | `env.ts` (only place env is read), `api.ts` (HTTP), `format.ts` (money, `Intl` dates, names), `toast.ts` (toast store), `utils.ts` |
+| Libs | `src/lib/` | `env.ts` (only place browser env is read; picks the Data API URL), `api.ts` (HTTP), `format.ts` (money, `Intl` dates, names), `toast.ts` (toast store), `utils.ts` |
 | Styles | `src/styles/globals.css` | Design tokens (light/dark) + `rx-*` helper classes |
 
 ## Server
+
+Server code lives in `server/`; `api/` holds thin Vercel function wrappers and `scripts/local-*.ts` the Vite dev equivalents. Relative imports in `api/` and `server/` end in `.js` (they run as native ES modules on Vercel).
 
 | Path | Responsibility |
 |---|---|
@@ -36,7 +38,7 @@ Structural index for the CRM template.
 | `api/auth/[action].ts` | Vercel function wrapping `server/auth.ts` |
 | `api/db/[action].ts` | Vercel function serving the Data API at `/api/db/*`, session-checked |
 | `scripts/local-auth-api.ts` | Serves `/api/auth/*` from the Vite dev/preview server |
-| `scripts/local-db-proxy.ts` | Local stand-in for the RiverX Data API (`/__local-db/v1`) |
+| `scripts/local-db-proxy.ts` | Dev-only stand-in for the RiverX Data API (`/__local-db/v1`), key-checked, wrapping `server/db.ts` |
 
 ## Root config
 

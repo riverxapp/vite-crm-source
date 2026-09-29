@@ -5,7 +5,7 @@ Change boundaries and placement rules for the CRM template.
 ## Product shape
 
 - Vite + React SPA: public landing + auth pages, and the CRM under `/app`.
-- CRM data goes through Drizzle over the Data API (`src/db/client.ts`).
+- CRM data goes through Drizzle over the Data API (`src/db/client.ts`): RiverX's hosted one, the dev proxy, or `/api/db` in production.
 - Auth goes through the server API (`server/auth.ts`); the browser never touches `auth_*` tables.
 - Business vocabulary and options live in `src/config/crm.ts`, never hard-coded in pages.
 - Dev-mode resource use is a product requirement: keep dependencies minimal (see Dependencies).
@@ -23,6 +23,7 @@ Change boundaries and placement rules for the CRM template.
 3. Use `db.batch([...])` for multi-step writes, never `db.transaction()`.
 4. Paginate lists (`crmConfig.pageSize`); the Data API caps results at 1,000 rows.
 5. Never import `@libsql/client` or read `TURSO_*` from `src/`. They belong to `server/`, `scripts/`, `api/` and `drizzle.config.ts` only.
+6. The SQL guard for our own Data API lives only in `server/db.ts`. Change it there so the dev proxy and `/api/db` stay identical.
 
 ## Components
 
@@ -40,6 +41,12 @@ Dev mode runs in shared workspaces, so the dependency list is kept deliberately 
 4. New shadcn components: add only the ones you use, restyle them to `DESIGN.md`, and remove the file and its dependency if they stop being used. The shadcn CLI installs `lucide-react` along with components: point their icon imports at `@/components/icons` and uninstall it.
 5. Keep one `esbuild`: if you upgrade Vite or `drizzle-kit`, update `pnpm.overrides` in `package.json` so their versions still match, then check `ls node_modules/.pnpm | grep ^esbuild@`.
 6. Keep `@vitejs/plugin-react-swc`; don't switch back to the Babel plugin.
+
+## Server code
+
+1. Put request handling in `server/`. Files in `api/` (Vercel functions) and `scripts/local-*.ts` (Vite middleware) only wire env and auth to it.
+2. Relative imports in `api/` and `server/` use the `.js` extension (`"../../server/auth.js"`). Vercel runs them as native ES modules, and an extensionless import crashes the function at load.
+3. Every `/api/*` route other than `/api/auth/*` must check the session (`userFromSession` in `server/auth.ts`) before touching data.
 
 ## Env and HTTP
 
