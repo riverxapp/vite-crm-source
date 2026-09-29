@@ -56,8 +56,8 @@ Stored values are the option `value` keys. Renaming a label is safe; changing a 
 |---|---|---|
 | `VITE_APP_NAME` | browser | App name (default `RiverX CRM`) |
 | `VITE_API_BASE_URL` | browser | Base for `src/lib/api.ts` (default `/api`) |
-| `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` | browser | RiverX Data API. Injected by RiverX; leave empty locally |
-| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | **server only** | drizzle-kit, the local DB proxy and the auth API. Never prefix with `VITE_` |
+| `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` | browser | RiverX Data API. Injected by RiverX; leave empty locally and on Vercel |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | **server only** | drizzle-kit, the local DB proxy, and the auth and data API functions. Never prefix with `VITE_` |
 
 `.env` / `.env.*` are gitignored.
 
@@ -70,18 +70,20 @@ browser ── /api/auth/* (cookie)   ──▶ server/auth.ts ──▶ Turso  
 
 - **In RiverX**, the Data API is RiverX's hosted endpoint (see `DATABASE.md`).
 - **Locally**, when `TURSO_*` are set and `VITE_RIVERX_DB_URL` is empty, `pnpm dev` serves the same Data API contract at `/__local-db/v1` (`scripts/local-db-proxy.ts`). The token stays in the Node process; DDL, multi-statement SQL and any SQL touching `auth_*` tables are rejected.
+- **On Vercel** (no RiverX), a production build defaults the Data API to `/api/db` (`api/db/[action].ts`). It requires a logged-in session cookie and applies the same guard. The guard and handler live in `server/db.ts`, shared with the local proxy.
 - **Auth** runs only on the server: Vite middleware in dev (`scripts/local-auth-api.ts`) and a Vercel function in production (`api/auth/[action].ts`). Both share `server/auth.ts`.
 
 ## Deploying
 
-The build is a static SPA plus one serverless function. `vercel.json` rewrites client routes to `index.html`.
+The build is a static SPA plus two serverless functions (`/api/auth/*`, `/api/db/*`). `vercel.json` rewrites client routes to `index.html`.
 
 1. Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in the hosting environment (server-only).
-2. For CRM data in production, either use RiverX (which injects `VITE_RIVERX_DB_*`) or provide your own Data API endpoint with the same contract.
+2. Run `pnpm db:push` against that database once so the tables exist.
+3. Leave `VITE_RIVERX_DB_*` unset: CRM data then goes through `/api/db`. Under RiverX, its injected `VITE_RIVERX_DB_*` take precedence.
 
 ## Security notes
 
-- **CRM data is not protected by login.** The Data API key ships in the browser bundle, so anyone with the app URL can read and write CRM tables directly, signed in or not. Login gates the UI, not the data. Before storing real customer data, move CRM queries behind the server (session-checked) API, the way `server/auth.ts` works.
+- **Under RiverX's Data API, CRM data is not protected by login.** The key ships in the browser bundle, so anyone with the app URL can read and write CRM tables directly. `/api/db` requires a session instead, but signup is open and every signed-in user can run any allowed SQL on all CRM rows. Before storing real customer data, restrict signup and move to per-route server queries.
 - Under RiverX's hosted Data API, the `auth_*` tables are readable with the public key. Passwords are scrypt-hashed and only session-token hashes are stored, but for real deployments keep auth in a database the public key cannot reach.
 
 ## Dependency budget

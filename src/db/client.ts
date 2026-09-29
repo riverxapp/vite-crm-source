@@ -12,7 +12,8 @@ type QueryResult = {
   truncated?: boolean;
 };
 
-export const isDatabaseConfigured = Boolean(env.dbUrl && env.dbKey);
+// /api/db authenticates with the session cookie; the RiverX Data API also needs dbKey.
+export const isDatabaseConfigured = Boolean(env.dbUrl);
 
 // Absolute, so apiRequest never prefixes it with the API base URL. Handles the
 // relative URL of the local dev proxy as well as the RiverX Data API URL.

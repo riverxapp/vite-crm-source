@@ -284,6 +284,8 @@ With no RiverX Data API, put `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in a gi
 - `src/db/client.ts` is unchanged; it resolves the relative URL against the page origin.
 - `drizzle.config.ts` loads `.env.local` / `.env` itself, so `pnpm db:push` works too.
 
+In a production build with no `VITE_RIVERX_DB_URL`, the app uses `/api/db` instead (`api/db/[action].ts`): the same contract and guard (`server/db.ts`), authorised by the login session cookie rather than `x-riverx-key`.
+
 This proxy exists in dev only. `vite build` output never contains it or the token.
 
 ## 10. Auth tables (server-only)

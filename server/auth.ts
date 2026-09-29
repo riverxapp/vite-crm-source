@@ -23,14 +23,14 @@ const COOKIE = "crm_session";
 const SESSION_DAYS = 30;
 const MAX_BODY_BYTES = 16 * 1024;
 
-type Env = { url?: string; authToken?: string };
+export type Env = { url?: string; authToken?: string };
 type User = { id: number; name: string; email: string };
 type HttpError = Error & { status: number };
 
 const httpError = (status: number, message: string) => Object.assign(new Error(message), { status }) as HttpError;
 
 let client: Client | null = null;
-function getDb(env: Env) {
+export function getDb(env: Env) {
   if (!env.url) throw httpError(503, "Auth is not configured: set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN on the server.");
   client ??= createClient({ url: env.url, authToken: env.authToken });
   return client;
@@ -147,7 +147,7 @@ async function createSession(db: Client, userId: number) {
   return token;
 }
 
-async function userFromSession(db: Client, req: IncomingMessage): Promise<User | null> {
+export async function userFromSession(db: Client, req: IncomingMessage): Promise<User | null> {
   const token = readCookie(req, COOKIE);
   if (!token) return null;
   const rs = await db.execute({

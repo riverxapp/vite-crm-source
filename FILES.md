@@ -32,7 +32,9 @@ Structural index for the CRM template.
 | Path | Responsibility |
 |---|---|
 | `server/auth.ts` | Auth API handler: signup, login, logout, me. scrypt hashes, DB-backed sessions |
+| `server/db.ts` | Data API handler and SQL guard, shared by the local proxy and `/api/db` |
 | `api/auth/[action].ts` | Vercel function wrapping `server/auth.ts` |
+| `api/db/[action].ts` | Vercel function serving the Data API at `/api/db/*`, session-checked |
 | `scripts/local-auth-api.ts` | Serves `/api/auth/*` from the Vite dev/preview server |
 | `scripts/local-db-proxy.ts` | Local stand-in for the RiverX Data API (`/__local-db/v1`) |
 
