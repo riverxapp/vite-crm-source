@@ -34,11 +34,11 @@ Server code lives in `server/`; `api/` holds thin Vercel function wrappers and `
 | Path | Responsibility |
 |---|---|
 | `server/auth.ts` | Auth API handler: signup, login, logout, me. scrypt hashes, DB-backed sessions |
-| `server/db.ts` | Data API handler and SQL guard, shared by the local proxy and `/api/db` |
+| `server/db.ts` | Data API handler and SQL guard, shared by the dev proxy and `/api/db` |
 | `api/auth/[action].ts` | Vercel function wrapping `server/auth.ts` |
 | `api/db/[action].ts` | Vercel function serving the Data API at `/api/db/*`, session-checked |
 | `scripts/local-auth-api.ts` | Serves the auth API from Vite: `/__local-api/auth/*` in dev, `/api/auth/*` in preview |
-| `scripts/local-db-proxy.ts` | Dev-only stand-in for the RiverX Data API (`/__local-db/v1`), key-checked, wrapping `server/db.ts` |
+| `scripts/local-db-proxy.ts` | Dev server's Data API (`/__local-db/v1`) for the RiverX preview and `pnpm dev`, key- and session-checked, wrapping `server/db.ts` |
 
 ## Root config
 
