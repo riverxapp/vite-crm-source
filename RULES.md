@@ -15,6 +15,7 @@ Change boundaries and placement rules for the CRM template.
 1. Define routes in `src/app/routes.tsx`. App pages live under `/app` and are lazy-loaded.
 2. Route-level views go in `src/pages`; shell composition goes in `src/components/layout`.
 3. Internal links use `/app/...` paths.
+4. Keep `basename: previewBasename` in `createBrowserRouter`. The RiverX editor preview serves the app under `/preview/<session>/__frame/`; without it every route shows the 404 page there. Navigate with `<Link>` / `useNavigate`, never `window.location`, so the prefix is kept.
 
 ## Data
 
