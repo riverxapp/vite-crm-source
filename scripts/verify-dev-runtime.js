@@ -48,6 +48,11 @@ assert(
 );
 
 assert(
+  viteConfig.includes('if (command === "serve") process.env.NODE_ENV = "development"'),
+  "vite.config.ts must force NODE_ENV=development for the dev server (workspace may inherit production)"
+);
+
+assert(
   supervisor.includes('return "5173"'),
   "scripts/dev-supervisor.js must default to port 5173"
 );

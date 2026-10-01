@@ -44,7 +44,7 @@ Stored values are the option `value` keys. Renaming a label is safe; changing a 
 | Command | Does |
 |---|---|
 | `pnpm dev` | Dev server with the local DB proxy and auth API |
-| `pnpm build` / `pnpm preview` | Production build / serve it. `preview` serves `/api/auth` but not `/api/db`, so data pages need `pnpm dev` or a Vercel deploy |
+| `pnpm build` / `pnpm preview` | Production build / serve it. `pnpm dev` serves auth at `/__local-api/auth/*`; `preview` serves `/api/auth` but not `/api/db`, so data pages need `pnpm dev` or a Vercel deploy |
 | `pnpm typecheck` | TypeScript check |
 | `pnpm db:push` | Apply `src/db/schema.ts` to Turso |
 | `pnpm db:studio` | Browse the database with Drizzle Studio |
@@ -55,7 +55,7 @@ Stored values are the option `value` keys. Renaming a label is safe; changing a 
 | Variable | Where | Purpose |
 |---|---|---|
 | `VITE_APP_NAME` | browser | App name (default `RiverX CRM`) |
-| `VITE_API_BASE_URL` | browser | Base for `src/lib/api.ts` (default `/api`) |
+| `VITE_API_BASE_URL` | browser | Base for `src/lib/api.ts` (default `/__local-api` in `pnpm dev`, `/api` in production builds). Never point the dev server at `/api`: a RiverX workspace preview routes `/api/*` to RiverX |
 | `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` | browser | RiverX Data API. Injected by RiverX; leave empty locally and on your own Vercel project |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | **server only** | drizzle-kit, the local DB proxy, and the auth and data API functions. Never prefix with `VITE_` |
 
@@ -65,7 +65,7 @@ Stored values are the option `value` keys. Renaming a label is safe; changing a 
 
 ```
 browser ── Drizzle (sqlite-proxy) ──▶ Data API ──▶ Turso        CRM tables
-browser ── /api/auth/* (cookie)   ──▶ server/auth.ts ──▶ Turso  auth_* tables
+browser ── auth API (cookie)      ──▶ server/auth.ts ──▶ Turso  auth_* tables
 ```
 
 The browser code is the same everywhere; only the Data API behind it changes:

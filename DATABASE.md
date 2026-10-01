@@ -347,6 +347,6 @@ A production build with no `VITE_RIVERX_DB_URL` uses `/api/db` (`api/db/[action]
 - No secrets, passwords, or PII in the database: under RiverX it is publicly readable and writable, and through `/api/db` any signed-in user can read and write it.
 - Don't edit `.env.local`. Don't read `TURSO_*` from `src/`. Don't import `@libsql/client` in `src/`.
 - Ask before destructive schema changes or seeding data.
-- Never read or write `auth_*` tables from `src/`. Auth goes through `/api/auth/*`.
+- Never read or write `auth_*` tables from `src/`. Auth goes through the auth API (`/__local-api/auth/*` in dev, `/api/auth/*` in production).
 - Change the SQL guard for our own Data API only in `server/db.ts`.
 - `scripts/db-init.js` is the separate Postgres (`DATABASE_URL`) migration helper. It is **not** used for the Turso database.

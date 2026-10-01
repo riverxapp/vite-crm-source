@@ -24,22 +24,29 @@ if (repoName) {
   allowedHosts.add(`${repoName}-production.up.railway.app`);
 }
 
-export default defineConfig({
-  plugins: [react(), localDbProxy(), localAuthApi()],
-  server: {
-    host: "0.0.0.0",
-    port,
-    strictPort: true,
-    allowedHosts: Array.from(allowedHosts),
-  },
-  preview: {
-    host: "0.0.0.0",
-    port,
-    strictPort: true,
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+export default defineConfig(({ command }) => {
+  // The workspace may start Vite with NODE_ENV=production inherited from the
+  // backend; a dev server needs development React builds.
+  if (command === "serve") process.env.NODE_ENV = "development";
+
+  return {
+    base: "/",
+    plugins: [react(), localDbProxy(), localAuthApi()],
+    server: {
+      host: "0.0.0.0",
+      port,
+      strictPort: true,
+      allowedHosts: Array.from(allowedHosts),
     },
-  },
+    preview: {
+      host: "0.0.0.0",
+      port,
+      strictPort: true,
+    },
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
+  };
 });
