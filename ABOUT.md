@@ -106,6 +106,6 @@ NOTES
 - Title: the repo calls itself "RiverX CRM". "Sales CRM" is used instead because the prompt says not to name RiverX's own services. Check that the slug sales-crm is not already used in the catalogue.
 - Preview image and live preview: neither is in the repo, so both are NEEDS INPUT (null in the JSON).
 - Type (vite) and database need (yes) were read from the repo, not from inputs.
-- Data privacy: nothing here calls the data private. The README and Settings page warn that any signed-in user can read and write all CRM data, that sign-up is open, and (README) that the RiverX preview's key can reach the same data. Keep privacy or security wording out of these fields.
+- Data privacy: nothing here calls the data private. The README and Settings page warn that any signed-in user can read and write all CRM data, and that sign-up is open. Keep privacy or security wording out of these fields.
 - Not checked on screen: the drag-to-move deal board and email logging (logging only, no sending) come from the README and code, not a running preview.
 - Character counts: description 129 (limit 160), intro 292 (limit 400), section word counts 78, 67 and 68, longest highlight 48 of 60, longest capability 69 of 80, longest getting-started step 85 of 110.

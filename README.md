@@ -56,8 +56,8 @@ Stored values are the option `value` keys. Renaming a label is safe; changing a 
 |---|---|---|
 | `VITE_APP_NAME` | browser | App name (default `RiverX CRM`) |
 | `VITE_API_BASE_URL` | browser | Base for `src/lib/api.ts` (default `/__local-api` in `pnpm dev`, `/api` in production builds). Never point the dev server at `/api`: a RiverX workspace preview routes `/api/*` to RiverX |
-| `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` | browser | RiverX Data API for the dev server in the RiverX preview. Injected by RiverX; production builds ignore them. Leave empty locally and on your own Vercel project |
-| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | **server only** | drizzle-kit, the local DB proxy, and the auth and data API functions. Set on Vercel by RiverX when you publish. Never prefix with `VITE_` |
+| `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` | browser | Set by the dev DB proxy (`scripts/local-db-proxy.ts`) in `pnpm dev`, including the RiverX preview; production builds ignore them. Leave empty in `.env*` files and on your own Vercel project: setting them turns the proxy off |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | **server only** | drizzle-kit, the dev DB proxy, and the auth and data API functions. Injected into the preview by RiverX, and set on Vercel by RiverX when you publish. Never prefix with `VITE_` |
 
 `.env` / `.env.*` are gitignored.
 
@@ -72,11 +72,10 @@ The browser code is the same everywhere; only the Data API behind it changes:
 
 | Where | Data API | Authorised by |
 |---|---|---|
-| RiverX preview (`pnpm dev`) | RiverX's hosted endpoint, from `VITE_RIVERX_DB_URL` (see `DATABASE.md`) | Publishable key `VITE_RIVERX_DB_KEY` |
-| `pnpm dev`, no RiverX | `/__local-db/v1`, served by `scripts/local-db-proxy.ts` when `TURSO_*` are set | Random per-process key |
+| `pnpm dev` (the RiverX preview, or anywhere with `TURSO_*` set) | `/__local-db/v1`, served by `scripts/local-db-proxy.ts` | Random per-process key and login session cookie |
 | Production build (published from RiverX, or your own Vercel deploy) | `/api/db/*`, served by `api/db/[action].ts` | Login session cookie |
 
-- The local proxy and `/api/db` share `server/db.ts`: the same contract and SQL guard (no DDL, one statement per query, no SQL touching `auth_*` tables). The Turso token stays on the server.
+- The dev proxy and `/api/db` share `server/db.ts`: the same contract and SQL guard (no DDL, one statement per query, no SQL touching `auth_*` tables). The Turso token stays on the server.
 - **Auth** runs only on the server: Vite middleware in dev (`scripts/local-auth-api.ts`) and a Vercel function in production (`api/auth/[action].ts`). Both share `server/auth.ts`.
 
 ## Deploying
@@ -101,7 +100,7 @@ The build is a static SPA plus two serverless functions (`/api/auth/*`, `/api/db
 ## Security notes
 
 - **Published apps protect CRM data with login.** Data goes through `/api/db`, which requires a session. But signup is open and every signed-in user can run any allowed SQL on all CRM rows. Before storing real customer data, restrict signup and move to per-route server queries.
-- **The RiverX preview is not protected by login.** It uses RiverX's hosted Data API with a publishable key that ships in the preview's bundle. Anyone who gets that key can read and write CRM tables and read the `auth_*` tables. The preview and the published app share one database, so this reaches published data too. The Data tab's **Key** button replaces the server token (`TURSO_AUTH_TOKEN`), not this key. Passwords are scrypt-hashed and only session-token hashes are stored.
+- **The RiverX preview is protected by login too.** Its data goes through the dev proxy, which requires a session like `/api/db` and rejects SQL that touches `auth_*` tables. The Turso token stays in the dev server. The preview and the published app share one database. The Data tab's **Key** button replaces the server token (`TURSO_AUTH_TOKEN`), updates Vercel, redeploys production and restarts the preview. Passwords are scrypt-hashed and only session-token hashes are stored.
 
 ## Dependency budget
 

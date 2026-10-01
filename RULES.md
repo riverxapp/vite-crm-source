@@ -5,7 +5,7 @@ Change boundaries and placement rules for the CRM template.
 ## Product shape
 
 - Vite + React SPA: public landing + auth pages, and the CRM under `/app`.
-- CRM data goes through Drizzle over the Data API (`src/db/client.ts`): RiverX's hosted one in the RiverX preview, the dev proxy, or `/api/db` in every production build.
+- CRM data goes through Drizzle over the Data API (`src/db/client.ts`): the dev proxy in `pnpm dev` (including the RiverX preview), or `/api/db` in every production build.
 - Auth goes through the server API (`server/auth.ts`); the browser never touches `auth_*` tables.
 - Business vocabulary and options live in `src/config/crm.ts`, never hard-coded in pages.
 - Dev-mode resource use is a product requirement: keep dependencies minimal (see Dependencies).
