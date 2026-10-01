@@ -66,8 +66,8 @@ export function SettingsPage() {
               ) : null}
             </div>
             <p className="border border-amber-600/35 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
-              This database has no end-user authentication: anyone with the app URL can read and write it. Add auth and a
-              server-side API before storing real customer data.
+              The published app reads and writes this database through its own sign-in-gated server API. Any signed-in user
+              can read and write every record, and sign-up is open: restrict both before storing real customer data.
             </p>
           </CardContent>
         </Card>

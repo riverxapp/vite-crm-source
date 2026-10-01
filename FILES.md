@@ -8,7 +8,7 @@ Structural index for the CRM template.
 - `src/main.tsx`: React mount.
 - `src/app/App.tsx`: providers (theme, auth, tooltips, toasts) + router.
 - `src/app/routes.tsx`: every route. `/`, `/login`, `/signup` are public; `/app/*` requires a session (app pages are lazy-loaded).
-- `src/app/DatabaseGate.tsx`: shows setup instructions when no database is configured (dev only in practice: production builds fall back to `/api/db`).
+- `src/app/DatabaseGate.tsx`: shows setup instructions when no database is configured (dev only in practice: production builds always use `/api/db`).
 
 ## Source areas
 

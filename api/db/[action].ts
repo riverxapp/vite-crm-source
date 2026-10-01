@@ -2,8 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { getDb, userFromSession } from "../../server/auth.js";
 import { handleDbRequest, send } from "../../server/db.js";
 
-// Vercel Node function for /api/db/:action — the production Data API when the
-// app is not hosted on RiverX. Requires a logged-in session cookie; uses the
+// Vercel Node function for /api/db/:action — the Data API for every production
+// build, including apps published from RiverX. Requires a logged-in session cookie; uses the
 // same server-only TURSO_DATABASE_URL / TURSO_AUTH_TOKEN as /api/auth/*.
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const action = (req.url ?? "").split("?")[0].match(/^\/api\/db\/([a-z]+)\/?$/)?.[1] ?? "";

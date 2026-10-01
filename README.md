@@ -56,8 +56,8 @@ Stored values are the option `value` keys. Renaming a label is safe; changing a 
 |---|---|---|
 | `VITE_APP_NAME` | browser | App name (default `RiverX CRM`) |
 | `VITE_API_BASE_URL` | browser | Base for `src/lib/api.ts` (default `/__local-api` in `pnpm dev`, `/api` in production builds). Never point the dev server at `/api`: a RiverX workspace preview routes `/api/*` to RiverX |
-| `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` | browser | RiverX Data API. Injected by RiverX; leave empty locally and on your own Vercel project |
-| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | **server only** | drizzle-kit, the local DB proxy, and the auth and data API functions. Never prefix with `VITE_` |
+| `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` | browser | RiverX Data API for the dev server in the RiverX preview. Injected by RiverX; production builds ignore them. Leave empty locally and on your own Vercel project |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | **server only** | drizzle-kit, the local DB proxy, and the auth and data API functions. Set on Vercel by RiverX when you publish. Never prefix with `VITE_` |
 
 `.env` / `.env.*` are gitignored.
 
@@ -72,9 +72,9 @@ The browser code is the same everywhere; only the Data API behind it changes:
 
 | Where | Data API | Authorised by |
 |---|---|---|
-| RiverX | RiverX's hosted endpoint, from `VITE_RIVERX_DB_URL` (see `DATABASE.md`) | Publishable key `VITE_RIVERX_DB_KEY` |
+| RiverX preview (`pnpm dev`) | RiverX's hosted endpoint, from `VITE_RIVERX_DB_URL` (see `DATABASE.md`) | Publishable key `VITE_RIVERX_DB_KEY` |
 | `pnpm dev`, no RiverX | `/__local-db/v1`, served by `scripts/local-db-proxy.ts` when `TURSO_*` are set | Random per-process key |
-| Production build, no RiverX (e.g. Vercel) | `/api/db/*`, served by `api/db/[action].ts` | Login session cookie |
+| Production build (published from RiverX, or your own Vercel deploy) | `/api/db/*`, served by `api/db/[action].ts` | Login session cookie |
 
 - The local proxy and `/api/db` share `server/db.ts`: the same contract and SQL guard (no DDL, one statement per query, no SQL touching `auth_*` tables). The Turso token stays on the server.
 - **Auth** runs only on the server: Vite middleware in dev (`scripts/local-auth-api.ts`) and a Vercel function in production (`api/auth/[action].ts`). Both share `server/auth.ts`.
@@ -83,9 +83,9 @@ The browser code is the same everywhere; only the Data API behind it changes:
 
 The build is a static SPA plus two serverless functions (`/api/auth/*`, `/api/db/*`). `vercel.json` rewrites client routes to `index.html`.
 
-1. In Vercel → Project → Settings → Environment Variables, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (server-only, no `VITE_` prefix) for each environment you deploy.
-2. Run `pnpm db:push` against that database once so the tables exist.
-3. Leave `VITE_RIVERX_DB_*` unset: CRM data then goes through `/api/db`. Under RiverX, its injected `VITE_RIVERX_DB_*` take precedence.
+1. Publishing from RiverX sets `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` on the Vercel project for you, as sensitive (server-only) variables for production and preview. Deploying yourself, set them in Vercel → Project → Settings → Environment Variables (server-only, no `VITE_` prefix) for each environment you deploy.
+2. Run `pnpm db:push` against that database once so the tables exist. Published from RiverX, it is the same database as the preview.
+3. Production builds ignore `VITE_RIVERX_DB_*`: CRM data always goes through `/api/db`, including when published from RiverX.
 4. Redeploy after changing env vars. `VITE_*` values are inlined at build time.
 
 `package.json` sets `"type": "module"`, so Vercel runs the functions as native ES modules. Relative imports in `api/` and `server/` must end in `.js` (`from "../../server/auth.js"`); without it the function fails to load with `FUNCTION_INVOCATION_FAILED`.
@@ -93,15 +93,15 @@ The build is a static SPA plus two serverless functions (`/api/auth/*`, `/api/db
 | Symptom on Vercel | Cause / fix |
 |---|---|
 | `FUNCTION_INVOCATION_FAILED` | Usually a relative import without `.js` in `api/` or `server/`. Check the function logs for `ERR_MODULE_NOT_FOUND` |
-| Auth returns 503 "Auth is not configured" | `TURSO_*` missing from that environment's variables |
+| Auth returns 503 "Auth is not configured" | `TURSO_*` missing from that environment's variables. Published from RiverX, the build predates RiverX setting `TURSO_*`: republish from RiverX, or generate a new key from the **Data** tab, which also redeploys |
 | "Connect a database to get started" | The deployed build predates `/api/db`. Redeploy from the current `main` |
 | Data requests return 401 "Log in to continue." | No valid session cookie. Log in again |
 | Errors like `no such table` | Run `pnpm db:push` against the production database |
 
 ## Security notes
 
-- **Under RiverX's Data API, CRM data is not protected by login.** The key ships in the browser bundle, so anyone with the app URL can read and write CRM tables directly. `/api/db` requires a session instead, but signup is open and every signed-in user can run any allowed SQL on all CRM rows. Before storing real customer data, restrict signup and move to per-route server queries.
-- Under RiverX's hosted Data API, the `auth_*` tables are readable with the public key. Passwords are scrypt-hashed and only session-token hashes are stored, but for real deployments keep auth in a database the public key cannot reach.
+- **Published apps protect CRM data with login.** Data goes through `/api/db`, which requires a session. But signup is open and every signed-in user can run any allowed SQL on all CRM rows. Before storing real customer data, restrict signup and move to per-route server queries.
+- **The RiverX preview is not protected by login.** It uses RiverX's hosted Data API with a publishable key that ships in the preview's bundle. Anyone who gets that key can read and write CRM tables and read the `auth_*` tables. The preview and the published app share one database, so this reaches published data too. The Data tab's **Key** button replaces the server token (`TURSO_AUTH_TOKEN`), not this key. Passwords are scrypt-hashed and only session-token hashes are stored.
 
 ## Dependency budget
 

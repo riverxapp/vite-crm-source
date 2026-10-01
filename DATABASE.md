@@ -2,17 +2,19 @@
 
 How to add and use a database in a RiverX Vite app.
 
-RiverX gives each project an optional **Turso (libSQL / SQLite)** database. The app never talks to Turso directly. It sends queries to the **RiverX Data API**, which holds the real Turso credentials server-side. You write queries with **Drizzle ORM** (`drizzle-orm/sqlite-proxy`).
+RiverX gives each project an optional **Turso (libSQL / SQLite)** database. The app never talks to Turso directly. It sends queries to a Data API that holds the real Turso credentials server-side: the **RiverX Data API** in the RiverX preview, and the app's own `/api/db` in every production build, including apps published from RiverX. You write queries with **Drizzle ORM** (`drizzle-orm/sqlite-proxy`).
 
 ```
-browser app ──POST {VITE_RIVERX_DB_URL}/query──▶ RiverX Data API ──▶ Turso
-               x-riverx-key: {VITE_RIVERX_DB_KEY}
+preview:    browser app ──POST {VITE_RIVERX_DB_URL}/query──▶ RiverX Data API ──▶ Turso
+                           x-riverx-key: {VITE_RIVERX_DB_KEY}
+published:  browser app ──POST /api/db/query (session cookie)──▶ api/db/[action].ts ──▶ Turso
 ```
 
-Outside RiverX, the app serves the same Data API contract itself: `/__local-db/v1` in `pnpm dev`, and `/api/db` in production builds such as a Vercel deploy. See [section 9](#9-running-outside-riverx).
+The app serves the same Data API contract itself: `/__local-db/v1` in `pnpm dev` outside RiverX, and `/api/db` in every production build, published from RiverX or deployed yourself. See [section 9](#9-running-outside-riverx).
 
 > [!WARNING]
-> **Under RiverX's hosted Data API, anyone who visits your app can read and write this database.** The publishable key ships in the JS bundle, and there is no row-level security or end-user auth. The Data API blocks destructive statements, but it does not stop `SELECT * FROM <table>`.
+> **In the RiverX preview, anyone with the publishable key can read and write this database.** The key ships in the preview's JS bundle, and RiverX's hosted Data API has no row-level security or end-user auth. It blocks destructive statements, but it does not stop `SELECT * FROM <table>`. The preview and the published app share the database, so a leaked preview key reaches published data.
+> Published apps do not use the key: data goes through `/api/db`, which requires a login session. Signup is open, though, and every signed-in user can read and write all CRM rows.
 > **Never store passwords, secrets, tokens, or personal data (PII) in it.**
 
 ---
@@ -23,7 +25,7 @@ The database is created on demand, not by default.
 
 1. Open the project preview in RiverX and go to the **Data** tab.
 2. Click **Create database**.
-3. RiverX provisions the database and injects the connection env vars (below) into the preview and the published build.
+3. RiverX provisions the database and injects the connection env vars (below) into the preview. When you publish, it sets them on the Vercel project (section 8).
 
 Until that happens, the env vars are empty. The client in step 4 handles this, so the app still boots.
 
@@ -33,12 +35,12 @@ Under RiverX, all of these are **injected by the platform. Do not edit `.env.loc
 
 | Variable | Where it exists | Used by |
 |---|---|---|
-| `VITE_RIVERX_DB_URL` | `.env.local`, Vite env, Vercel env | App (browser). Data API base URL, e.g. `https://agent.riverx.app/db/v1` |
-| `VITE_RIVERX_DB_KEY` | `.env.local`, Vite env, Vercel env | App (browser). Publishable key `rxdb_pk_…`, safe to ship |
-| `TURSO_DATABASE_URL` | Server side **only**: dev server and workspace terminal; your own `.env` or Vercel env outside RiverX | `drizzle-kit`, the auth API, the local proxy and `/api/db` |
+| `VITE_RIVERX_DB_URL` | `.env.local`, Vite env, Vercel env | App (browser), dev server only. Data API base URL, e.g. `https://agent.riverx.app/db/v1`. Production builds ignore it |
+| `VITE_RIVERX_DB_KEY` | `.env.local`, Vite env, Vercel env | App (browser), dev server only. Publishable key `rxdb_pk_…`. Production builds leave it out of the bundle |
+| `TURSO_DATABASE_URL` | Server side **only**: dev server and workspace terminal; Vercel env (set by RiverX when you publish); your own `.env` or Vercel env outside RiverX | `drizzle-kit`, the auth API, the local proxy and `/api/db` |
 | `TURSO_AUTH_TOKEN` | Server side **only**, as above | As above |
 
-`TURSO_*` values are full-access credentials. Under RiverX they are never written to disk. Outside RiverX keep them only in a gitignored `.env` or your host's server-side env. Never read them from `src/`, never commit them, and never prefix them with `VITE_`.
+`TURSO_*` values are full-access credentials. Under RiverX they are never written to disk, and on the published Vercel project they are sensitive (write-only) variables. Outside RiverX keep them only in a gitignored `.env` or your host's server-side env. Never read them from `src/`, never commit them, and never prefix them with `VITE_`.
 
 Make sure `.gitignore` contains:
 
@@ -71,13 +73,12 @@ pnpm add -D drizzle-kit
 Per `RULES.md`, env vars are read only here.
 
 ```ts
-// Production builds outside RiverX use our own Data API function (api/db/[action].ts).
-const DEFAULT_DB_URL = import.meta.env.PROD ? "/api/db" : "";
-
+// Production builds (including apps published from RiverX) always use our own
+// Data API function (api/db/[action].ts). The publishable key is dev-only.
 export const env = {
   // ...existing fields
-  dbUrl: import.meta.env.VITE_RIVERX_DB_URL || DEFAULT_DB_URL,
-  dbKey: import.meta.env.VITE_RIVERX_DB_KEY || "",
+  dbUrl: import.meta.env.PROD ? "/api/db" : import.meta.env.VITE_RIVERX_DB_URL || "",
+  dbKey: import.meta.env.PROD ? "" : import.meta.env.VITE_RIVERX_DB_KEY || "",
 };
 ```
 
@@ -264,7 +265,7 @@ export function TodoList() {
 
 ## 7. Limits and blocked statements
 
-Enforced by RiverX's hosted Data API on every request:
+Enforced by RiverX's hosted Data API (used by the RiverX preview) on every request:
 
 | Limit | Default |
 |---|---|
@@ -276,28 +277,29 @@ Enforced by RiverX's hosted Data API on every request:
 
 Always rejected: DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`, `RENAME`, `REINDEX`), `ATTACH`/`DETACH`, `VACUUM INTO`, `LOAD_EXTENSION`, `PRAGMA` writes, multiple statements in one call, and writes to `sqlite_*`, `libsql_*` and `__drizzle*` tables.
 
-Our own Data API (`server/db.ts`, behind the local proxy and `/api/db`) applies the same row cap, one-statement rule and blocked list (it rejects `VACUUM` in any form), and also rejects any SQL that mentions `auth_users` or `auth_sessions`. It has a 1 MB request body limit but no SQL-length limit, rate limit or query timeout of its own.
+Our own Data API (`server/db.ts`, behind the local proxy and `/api/db`, which every production build uses) applies the same row cap, one-statement rule and blocked list (it rejects `VACUUM` in any form), and also rejects any SQL that mentions `auth_users` or `auth_sessions`. It has a 1 MB request body limit but no SQL-length limit, rate limit or query timeout of its own.
 
 Errors come back as `{ error, code }` and surface as thrown errors from `apiRequest`.
 
 | Status | Meaning |
 |---|---|
-| 401 | Missing or invalid `x-riverx-key` (RiverX, local proxy), or no logged-in session (`/api/db`) |
+| 401 | Missing or invalid `x-riverx-key` (RiverX preview, local proxy), or no logged-in session (`/api/db`) |
 | 403 | Statement blocked by the guard, or origin not allowed |
 | 413 | Request body over 1 MB (our own Data API) |
-| 429 | Rate limited, so back off and retry (RiverX) |
+| 429 | Rate limited, so back off and retry (RiverX preview) |
 
-`GET {dbUrl}/health` returns liveness and the access mode (`local-proxy` or `vercel-function` for ours). Under RiverX and the local proxy it needs `x-riverx-key`; `/api/db/health` needs a session. Settings → Database uses it for a connection check.
+`GET {dbUrl}/health` returns liveness and the access mode (`local-proxy` or `vercel-function` for ours). In the RiverX preview and the local proxy it needs `x-riverx-key`; `/api/db/health` needs a session. Settings → Database uses it for a connection check.
 
 ## 8. Publishing
 
-- RiverX adds `VITE_RIVERX_DB_URL` / `VITE_RIVERX_DB_KEY` to the Vercel env **before** the build. Vite inlines `import.meta.env.VITE_*` at build time.
+- RiverX adds `VITE_RIVERX_DB_URL`, `VITE_RIVERX_DB_KEY`, `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to the Vercel env for production and preview **before** the build. `TURSO_*` are sensitive variables: write-only and server-only.
+- Production builds ignore `VITE_RIVERX_DB_*`. Data goes through `/api/db` with the login session, so the publishable key and the RiverX Data API URL are not in the published bundle.
 - The published domain and any custom domain are added to the database's allowed origins automatically.
-- **Rotating the publishable key requires a redeploy.** The old key is baked into the existing bundle.
+- Each project's database has its own Turso token. To replace it, use **Key** in the **Data** tab. The old token stops working at once; RiverX updates the Vercel env, redeploys the current production build and restarts the preview. The live app's server routes fail for the minute or so the redeploy takes.
 
 ## 9. Running outside RiverX
 
-Put `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` where the server can read them and leave `VITE_RIVERX_DB_URL` empty. `server/db.ts` then serves the Data API contract from our own server, with the guard from section 7. `src/db/client.ts` is the same in every mode; it resolves relative URLs against the page origin.
+Put `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` where the server can read them and leave `VITE_RIVERX_DB_URL` empty (production builds ignore it anyway). `server/db.ts` then serves the Data API contract from our own server, with the guard from section 7. `src/db/client.ts` is the same in every mode; it resolves relative URLs against the page origin.
 
 ### Local development: `/__local-db/v1`
 
@@ -309,9 +311,9 @@ With `TURSO_*` in a gitignored `.env` (or exported), `pnpm dev` serves the proxy
 
 ### Production (Vercel): `/api/db`
 
-A production build with no `VITE_RIVERX_DB_URL` uses `/api/db` (`api/db/[action].ts`):
+Every production build uses `/api/db` (`api/db/[action].ts`), including apps published from RiverX:
 
-- Set `TURSO_*` in the Vercel project's Environment Variables and run `pnpm db:push` against that database once.
+- Set `TURSO_*` in the Vercel project's Environment Variables (publishing from RiverX does this for you) and run `pnpm db:push` against that database once.
 - Requests are authorised by the login session cookie instead of `x-riverx-key`, so data pages work only when signed in.
 - Signup is open, and every signed-in user can read and write all CRM rows through the guard. Restrict signup before storing real customer data.
 
@@ -321,8 +323,8 @@ A production build with no `VITE_RIVERX_DB_URL` uses `/api/db` (`api/db/[action]
 
 - Never query `auth_*` from `src/`. The local proxy and `/api/db` reject any SQL that mentions them.
 - Passwords are scrypt-hashed. Session tokens live only in an httpOnly cookie; the table stores their SHA-256.
-- **Caveat:** RiverX's hosted Data API does not know about this rule, so under RiverX the `auth_*` tables are readable with the publishable key. Hashes are not plaintext, but for production keep auth data where the public key cannot reach it.
-- The server auth API needs `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` in the hosting environment (server-only, never `VITE_`).
+- **Caveat:** RiverX's hosted Data API does not know about this rule, so in the RiverX preview the `auth_*` tables are readable with the publishable key. Hashes are not plaintext. Published apps go through `/api/db`, which rejects such SQL, but the database is shared, so the preview's key must not leak.
+- The server auth API needs `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` in the hosting environment (server-only, never `VITE_`). Publishing from RiverX sets them.
 
 ## 11. Troubleshooting
 
@@ -336,7 +338,6 @@ A production build with no `VITE_RIVERX_DB_URL` uses `/api/db` (`api/db/[action]
 | `drizzle-kit push` can't connect | Under RiverX, run it in the workspace terminal, where `TURSO_*` are injected (they are not in `.env.local` by design). Outside RiverX, put them in `.env`. |
 | 401 `Log in to continue.` from `/api/db` | No valid session. Log in again. |
 | Data pages fail under `pnpm preview` | `preview` doesn't serve `/api/db`. Use `pnpm dev` or deploy. |
-| Works in preview, CORS error on custom domain | The domain isn't in allowed origins yet. Re-attach the domain or republish. |
 | Results stop at 1,000 rows | Row cap. Paginate. |
 
 ## Checklist for agents
@@ -344,7 +345,7 @@ A production build with no `VITE_RIVERX_DB_URL` uses `/api/db` (`api/db/[action]
 - `db` comes from `src/db/client.ts`. Tables live in `src/db/schema.ts`.
 - Apply schema changes with `pnpm db:push`. There is no DDL at runtime.
 - Use `db.batch([...])`, **never** `db.transaction()`.
-- No secrets, passwords, or PII in the database: under RiverX it is publicly readable and writable, and through `/api/db` any signed-in user can read and write it.
+- No secrets, passwords, or PII in the database: in the RiverX preview anyone with the publishable key can read and write it, and through `/api/db` any signed-in user can read and write it.
 - Don't edit `.env.local`. Don't read `TURSO_*` from `src/`. Don't import `@libsql/client` in `src/`.
 - Ask before destructive schema changes or seeding data.
 - Never read or write `auth_*` tables from `src/`. Auth goes through the auth API (`/__local-api/auth/*` in dev, `/api/auth/*` in production).
