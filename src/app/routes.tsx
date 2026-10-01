@@ -10,6 +10,10 @@ import { DatabaseGate } from "./DatabaseGate";
 const page = (load: () => Promise<Record<string, React.ComponentType>>, name: string): RouteObject["lazy"] =>
   async () => ({ Component: (await load())[name] });
 
+// The RiverX editor preview serves the app under /preview/<session>/__frame/; route below that
+// prefix there, and from / everywhere else.
+const previewBasename = window.location.pathname.match(/^\/preview\/[^/]+\/__frame/)?.[0];
+
 export const router = createBrowserRouter(
   [
     { path: "/", element: <LandingPage /> },
@@ -44,6 +48,7 @@ export const router = createBrowserRouter(
     { path: "*", element: <NotFoundPage /> },
   ],
   {
+    basename: previewBasename,
     future: {
       v7_relativeSplatPath: true,
       v7_fetcherPersist: true,
